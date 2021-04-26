@@ -1,4 +1,4 @@
-From Mtac2 Require Import Base Datatypes List Sorts Specif MTele MFixDef MTeleMatchDef Tactics.
+From Mtac2 Require Import Base Datatypes List Sorts Specif MTele Tactics MFixDef MTeleMatchDef.
 Import Sorts.S.
 Import M.notations.
 Import ListNotations.
@@ -29,15 +29,15 @@ Definition MTele_of (A : Type) : forall T, T -> M (msigT (MTele_Const (s:=Type�
           _
           T
           [m:
-             (@mtpbase
+             branch_pattern (@pbase
                 _
                 (fun T => T -> M (msigT (MTele_Const (s:=Typeₛ) A)))
                 A
                 (fun t : A => M.ret (mexistT (MTele_Const (s:=Typeₛ) A) mBase t))
                 UniCoq
              )
-          |  (mtptele (fun (X : Type) => mtptele (fun (F : forall x : X, Type) =>
-              @mtpbase
+          |  branch_pattern (ptele (fun (X : Type) => ptele (fun (F : forall x : X, Type) =>
+              @pbase
                 _
                 (fun T => T -> M (msigT (MTele_Const (s:=Typeₛ) A)))
                 (forall x : X, F x)

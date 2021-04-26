@@ -212,17 +212,6 @@ Mtac Do (
 (* [is_head] *)
 Mtac Do (
        mmatch (3 + 5) with
-       | branch_app_static
-             (m :=MTele.mTele (fun x : nat => MTele.mTele (fun y : nat => MTele.mBase)))
-             UniMatchNoRed
-             plus
-             (fun x y => M.unify_or_fail UniMatchNoRed (x,y) (3,5);; M.ret I)
-      end
-     ).
-
-(* With nice syntax *)
-Mtac Do (
-       mmatch (3 + 5) with
        | [#] plus | x y =n> M.unify_or_fail UniMatchNoRed (x,y) (3,5);; M.ret I
       end
      ).
@@ -314,18 +303,6 @@ Fail Mtac Do (R3_test3).
 
 
 (* [decompose_forall[P|T]] *)
-Mtac Do (
-       mmatch (forall x : nat, x = x) with
-       | branch_forallP (fun X P => M.unify_or_fail UniMatchNoRed P (fun x => x = x);; M.ret I)
-      end
-     ).
-Mtac Do (
-       mmatch (nat -> Type) with
-       | branch_forallT (fun X P => M.unify_or_fail UniMatchNoRed P (fun x => Type);; M.ret I)
-      end
-     ).
-
-(* With nice syntax *)
 Mtac Do (
        mmatch (forall x : nat, x = x) with
        | [!Prop] forall _ : X, P =n> M.unify_or_fail UniMatchNoRed P (fun x => x = x);; M.ret I

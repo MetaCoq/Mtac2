@@ -130,7 +130,7 @@ Definition abstract A B (x : A) (t : B) : M (moption _) :=
          | mNone,    mSome Q' => ret (mSome (non_dep_eq (R (fun _ => P) meq_refl) Q'))
          | mNone,    mNone    => ret mNone
          end
-       | _ =n>
+       | _ as r =>
           let r' := dreduce (typer) (typer r) in
           mmatch r as r' return M (moption (result x (elemr r'))) with
           | [? A' (t1 : A' -> r') t2] Dynr (t1 t2)  =n>

@@ -33,14 +33,14 @@ Qed.
 Lemma testLApply@{i j} : Type@{i} -> Type@{max(i,j)}.
 Proof. apply @id. Qed.
 
-Notation "p '=e>' b" := (pbase p%core (fun _ => b%core) UniEvarconv)
+Notation "p '=e>' b" := (pbase p%core (b%core) UniEvarconv)
   (no associativity, at level 201) : pattern_scope.
-Notation "p '=e>' [ H ] b" := (pbase p%core (fun H => b%core) UniEvarconv)
+Notation "p '=e>' [ H ] b" := (pbase p%core (b%core) UniEvarconv)
   (no associativity, at level 201, H at next level) : pattern_scope.
 
 Definition test_match@{k m+} {A:Type@{k}} (x:A) : tactic :=
   mmatch A with
-  | [? B:Type@{m}] B =e> T.exact x
+  | [? B:Type@{m}] B =c> T.exact x
   end.
 
 

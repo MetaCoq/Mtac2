@@ -11,12 +11,12 @@ Local Definition MFA {n} (T : MTele_Ty n) := (MTele_val (MTele_C Typeₛ Propₛ
 (* Less specific version of MTele_of in MTeleMatch.v *)
 Definition MTele_of' :=
   (mfix1 f (T : Prop) : M { m : MTele & { mT : MTele_Ty m & T =m= MFA mT } } :=
-     mmatch T as T0 return M { m : MTele & { mT : MTele_Ty m & T =m= MFA mT } } with
-     | [?X : Type] M X =u> [H]
+     (mtmmatch T as T0 return T =m= T0 -> M { m : MTele & { mT : MTele_Ty m & T =m= MFA mT } } with
+     | [?X : Type] M X =u> fun H =>
                         M.ret (existT (fun m => {mT : MTele_Ty m & T =m= MFA mT}) (mBase)
                                       (existT (fun mT : MTele_Ty mBase => T =m= MFA mT) _ H)
                               )
-     | [?(X : Type) (F : forall x:X, Prop)] (forall x:X, F x) =c> [H]
+     | [?(X : Type) (F : forall x:X, Prop)] (forall x:X, F x) =c> fun H =>
        M.nu (FreshFrom F) mNone (fun x =>
                        '(existT _ m (existT _ mT E)) <- f (F x);
                        m' <- M.abs_fun x m;
@@ -33,7 +33,7 @@ Definition MTele_of' :=
                        (* M.unify e er UniEvarconv;; *)
                        (* M.ret (existT (fun m => (forall x:X, F x) =m= MFA m) (mTele g) e) *)
                     )
-   end
+   end) meq_refl
   ).
 
 Definition MTele_of : Prop -> M (sigT MTele_Ty) :=

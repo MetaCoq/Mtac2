@@ -74,34 +74,34 @@ Definition fix4 {A1} {A2 : A1 -> Type} {A3 : forall a1 : A1, A2 a1 -> Type}
   @M.fix5 A1 A2 A3 A4 (fun _ _ _ _ => (goal _)) (fun x y z z' _ => mlist (B x y z z' *m (goal _))).
 
 
-Local Notation Tpattern A P y := (pattern A (fun y => gtactic (P y)) y).
-Local Notation Tbranch A P y := (branch A (fun y => gtactic (P y)) y).
+Local Notation Tpattern A P := (pattern A (fun y => gtactic (P y))).
+Local Notation Tbranch A P := (branch A (fun y => gtactic (P y))).
 
-Fixpoint pattern_map {A} {B : A -> Type} (g : (goal _)) (y : A)
-    (p : Tpattern A B y) : pattern A (fun y => M (mlist (B y *m (goal _)))) y :=
+Fixpoint pattern_map {A} {B : A -> Type} (g : (goal _))
+    (p : Tpattern A B) : pattern A (fun y => M (mlist (B y *m (goal _)))) :=
   match p with
-  | pany b => pany (b g)
-  | pbase x f r => pbase x (fun Heq => f Heq g) r
-  | ptele f => ptele (fun x => pattern_map g y (f x))
-  | psort f => psort (fun s => pattern_map g y (f s))
+  | pany f => pany (fun x => f x g)
+  | pbase x f r => pbase x (f g) r
+  | ptele f => ptele (fun x => pattern_map g (f x))
+  | psort f => psort (fun s => pattern_map g (f s))
   end.
 
-Definition branch_map {A} {B} (y : A) (g : (goal _)) (b : branch A (fun a => gtactic (B a)) y) :
-  branch A (fun y => M (mlist (B y *m (goal _)))) y :=
-  match b in branch A' P' y' return
+Definition branch_map {A} {B} (y : A) (g : (goal _)) (b : branch A (fun a => gtactic (B a))) :
+  branch A (fun y => M (mlist (B y *m (goal _)))) :=
+  match b in branch A' P' return
         forall B : A' -> Type,
         forall P_eq : P' =m= fun a => gtactic (B a),
-        branch A' (fun y => M (mlist (B y *m (goal _)))) y'
+        branch A' (fun y => M (mlist (B y *m (goal _))))
   with
-  | @branch_pattern _ _ y p =>
+  | @branch_pattern _ _ p =>
     fun B P_eq =>
-      let op p := branch_pattern (pattern_map g y p) in
+      let op p := branch_pattern (pattern_map g p) in
       ltac:(rewrite P_eq in p; refine (op p))
   | branch_app_static U ct cont =>
     fun _ P_eq =>
       let cont := ltac:(rewrite P_eq in cont; refine cont) in
       let cont := MTele.MTele_constmap_app (si:=Typeₛ) Propₛ (fun _ _ => _) ct cont g in
-      @branch_app_static _ _ _ _ U _ cont
+      @branch_app_static _ _ _ U _ cont
   | branch_forallP cont =>
     fun _ P_eq =>
       let cont := ltac:(rewrite P_eq in cont; refine cont) in
@@ -113,10 +113,10 @@ Definition branch_map {A} {B} (y : A) (g : (goal _)) (b : branch A (fun a => gta
   end B meq_refl.
 
 Definition mmatch' {A P} (E : Exception) (y : A)
-    (ps : mlist (Tbranch A P y)) : gtactic (P y) := fun g =>
-  M.mmatch' E y (mmap (branch_map y g) ps).
+    (ps : mlist (Tbranch A P)) : gtactic (P y) := fun g =>
+  M.mmatch' E (mmap (branch_map y g) ps) y.
 
-Definition mmatch'' {A:Type} {P: A -> Type} (E : Exception) (y : A) (failure : gtactic (P y)) (ps : mlist (Tbranch A P y)) : gtactic (P y) := fun g =>
+Definition mmatch'' {A:Type} {P: A -> Type} (E : Exception) (y : A) (failure : gtactic (P y)) (ps : mlist (Tbranch A P)) : gtactic (P y) := fun g =>
   M.mmatch'' E y (failure g) (mmap (branch_map y g) ps).
 
 Module Matcher.
@@ -467,10 +467,10 @@ Module notations.
     (at level 200, f ident, x binder, y binder, format
     "'[v  ' 'mfix4'  f  x  ..  y  ':'  'gtactic'  T  ':=' '/  ' b ']'") : tactic_scope.
 
-  Notation "'mtry' a ls" :=
+  Notation "'mtry' a 'with' ls 'end'" :=
     (mtry' a (fun e =>
-      (@mmatch'' _ (fun _ => _) M.NotCaught e (T.raise e) ls%with_pattern)))
-      (at level 200, a at level 100, ls at level 91, only parsing) : tactic_scope.
+      (@mmatch'' _ (fun _ => _) M.NotCaught e (T.raise e) ls)))
+      (at level 200, a at level 100, ls custom Mtac2_with_branch at level 91, only parsing) : tactic_scope.
 
   Notation "t || u" := (or t u) : tactic_scope.
 

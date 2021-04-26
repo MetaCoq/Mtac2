@@ -1,7 +1,7 @@
 Require Import Strings.String.
 Require Import ssrmatching.ssrmatching.
 From Mtac2 Require Export Base.
-From Mtac2 Require Import Logic Datatypes List Utils Logic Sorts.
+From Mtac2 Require Import Logic Datatypes List Utils Logic Sorts MTeleMatch.
 From Mtac2.tactics Require Export TacticsBase.
 Import Sorts.S.
 Import M.notations.
@@ -141,23 +141,23 @@ Definition generalize {A} (x : A) : tactic := fun g =>
   | Metavar Typeₛ P _ =>
      aP <- M.abs_prod_type x P; (* aP = (forall x:A, P) *)
      e <- M.remove x (M.evar aP);
-     mmatch aP with
-     | [? Q : A -> Type] (forall z:A, Q z) =n> [H]
+     (mtmmatch aP as aP' return aP =m= aP' -> M _ with
+     | [? Q : A -> Type] (forall z:A, Q z) =n> fun H =>
         let e' := reduce (RedWhd [rl:RedMatch]) match H in _ =m= Q return Q with meq_refl _ => e end in
         exact (e' x) g;;
         M.ret [m:(m: tt, AnyMetavar Typeₛ _ e)]
-     | _ => M.failwith "generalize"
-     end
+     | _ as _catchall => fun _ => M.failwith "generalize"
+     end) meq_refl
   | Metavar Propₛ P _ =>
      aP <- M.abs_prod_prop x P; (* aP = (forall x:A, P) *)
      e <- M.remove x (M.evar aP);
-     mmatch aP with
-     | [? Q : A -> Prop] (forall z:A, Q z) =n> [H]
+     (mtmmatch aP as aP' return @meq Prop aP aP' -> M _ with
+     | [? Q : A -> Prop] (forall z:A, Q z) =n> fun H : @meq Prop _ (forall z:A, Q z) =>
         let e' := reduce (RedWhd [rl:RedMatch]) match H in _ =m= Q return Q with meq_refl _ => e end in
         exact (e' x) g;;
         M.ret [m:(m: tt, AnyMetavar Propₛ _ e)]
-     | _ => M.failwith "generalize"
-     end
+     | _ as _catchall => fun (H : aP =m= _catchall) => M.failwith "generalize"
+     end) meq_refl
   end.
 
 (** Clear hypothesis [x] and continues the execution on [cont] *)

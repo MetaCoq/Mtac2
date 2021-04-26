@@ -420,7 +420,7 @@ only three cases:
 
 Definition simpl_prop_auto :=
   mfix1 f (p : Prop) : M p :=
-    mmatch p as p' return M p' with
+    mmatch p in Prop as p' return M p' with
     | True => ret I
     | [? p1 p2 ] p1 /\ p2 =>
          r1 <- f p1 ;
@@ -662,18 +662,16 @@ equality of natural numbers. *)
 
 Program Definition eq_nats  :=
   mfix2 f (x : nat) (y : nat) : M (x == y = true) :=
-    mmatch (x, y)  with
-    | (x, x) => [H] ret _
-    | [? x1 x2] (x1 + x2, x2 + x1) => [H]
+    mmatch (x, y) as xy return M (fst xy == snd xy = true)  with
+    | (x, x) => ret _
+    | [? x1 x2] (x1 + x2, x2 + x1) =>
       ret _
     end.
 Next Obligation.
-  inversion H.
   symmetry.
   apply beq_nat_refl.
 Qed.
 Next Obligation.
-  inversion H.
   rewrite beq_nat_true_iff.
   apply plus_comm.
 Qed.

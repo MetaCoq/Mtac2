@@ -33,41 +33,6 @@ Eval hnf in ltac:(mrun (MTele_of (fun x : nat => forall y:nat, M (x = y)))).
 Local Example MTele_of_Test : nat -> msigT MTele_Ty :=
   Eval hnf in ltac:(mrun (MTele_of (fun x : nat => forall y:nat, M (x = y)))).
 
-Declare Scope mtpattern_prog_scope.
-Bind Scope mtpattern_prog_scope with mtpattern.
-Delimit Scope mtpattern_prog_scope with mtpattern_prog.
-
-Notation "[¿ s .. t ] ps" := (mtpsort (fun s => .. (mtpsort (fun t => ps)) ..))
-  (at level 202, s binder, t binder, ps at next level, only parsing) : mtpattern_prog_scope.
-Notation "'[S?' s .. t ] ps" := (mtpsort (fun s => .. (mtpsort (fun t => ps)) ..))
-  (at level 202, s binder, t binder, ps at next level) : mtpattern_prog_scope.
-
-Notation "[? x .. y ] ps" := (mtptele (fun x => .. (mtptele (fun y => ps)).. ))
-  (at level 202, x binder, y binder, ps at next level) : mtpattern_prog_scope.
-
-Notation "d '=u>' t" := (mtpbase d t UniCoq)
-    (at level 201) : mtpattern_prog_scope.
-Notation "d '=c>' t" := (mtpbase d t UniEvarconv)
-    (at level 201) : mtpattern_prog_scope.
-Notation "d '=n>' t" := (mtpbase d t UniMatchNoRed)
-    (at level 201) : mtpattern_prog_scope.
-Notation "d '=m>' t" := (mtpbase d t UniMatch)
-    (at level 201) : mtpattern_prog_scope.
-
-Notation "'_' => b " := (mtptele (fun x=> mtpbase x b%core UniMatch))
-  (at level 201, b at next level) : mtpattern_prog_scope.
-
-
-Declare Scope with_mtpattern_prog_scope.
-Delimit Scope with_mtpattern_prog_scope with with_mtpattern_prog.
-
-Notation "'with' | p1 | .. | pn 'end'" :=
-  ((@mcons (mtpattern _ _) p1%mtpattern_prog (.. (@mcons (mtpattern _ _) pn%mtpattern_prog mnil) ..)))
-  (at level 91, p1 at level 210, pn at level 210) : with_mtpattern_prog_scope.
-Notation "'with' p1 | .. | pn 'end'" :=
-  ((@mcons (mtpattern _ _) p1%mtpattern_prog (.. (@mcons (mtpattern _ _) pn%mtpattern_prog mnil) ..)))
-  (at level 91, p1 at level 210, pn at level 210) : with_mtpattern_prog_scope.
-
 Class TC_UNIFY {T : Type} (A B : T) := tc_unify : (A =m= B).
 Arguments tc_unify {_} _ _ {_}.
 Definition tc_unify_mtac T (A B : T) :=
@@ -84,27 +49,20 @@ Definition tc_unify_mtac T (A B : T) :=
   end.
 Hint Extern 0 (@TC_UNIFY ?T ?A ?B) => mrun (tc_unify_mtac T A B) : typeclass_instances.
 
-Structure CS_UNIFY (T : Type) :=
-  CS_Unify {
-      cs_unify_A : T;
-      cs_unify_B : T;
-      cs_unify: cs_unify_A =m= cs_unify_B
-    }.
-
 Class MT_OF {A} (T : A -> Prop) := mt_of : A -> msigT MTele_Ty.
 Arguments mt_of {_} _ {_}.
 Hint Extern 0 (@MT_OF ?A ?t) => mrun (@MTele_of A t) : typeclass_instances.
 
 
-Notation "'mtmmatch_prog' x 'as' y 'return' T p" :=
+Notation "'mtmmatch' x 'as' y 'return' T 'with' p 'end'" :=
   (
     let mt1 := mt_of (fun y => T) in
     match tc_unify (fun _z => MTele_ty M (mprojT2 (mt1 _z))) ((fun y => T))
-          in _ =m= R return mlist (mtpattern _ R) -> R x with
+          in _ =m= R return mlist (branch _ R) -> R x with
     | meq_refl => mtmmatch' _ (fun _z => mprojT1 (mt1 _z)) (fun _z => mprojT2 (mt1 _z)) x
     end
-    (p%with_mtpattern_prog)
-  ) (at level 200, p at level 201).
+    (p)
+  ) (at level 200, p custom Mtac2_with_branch).
 
 Local Example mt_of_test : MT_OF (fun x:nat => forall y:nat, M nat).
 Proof. apply _. Qed.
@@ -119,24 +77,12 @@ Local Example test1 :=
 
 
 Local Program Example mtmmatch_prog_test (x : (nat : Type)) :=
-  mtmmatch_prog x as x return forall y, M (x = y) with
+  mtmmatch x as x return forall y, M (x = y) with
   | [?i] i =n>  fun y => M.failwith ""
 end.
 
-Canonical Structure CS_UNIFY_REFl {T} (A : T) : CS_UNIFY T := CS_Unify _ A A meq_refl.
-Arguments cs_unify {_ _}.
 
-
-Definition mtpbase_eq {A} {m : A -> Prop} (x : A) F (eq : m x =m= F x) : F x -> Unification -> mtpattern A m :=
-  match eq in _ =m= R return R -> _ -> _ with
-  | meq_refl => mtpbase x
-  end.
-
-
-Declare Scope mtpattern_scope.
-Bind Scope mtpattern_scope with mtpattern.
-Delimit Scope mtpattern_scope with mtpattern.
-
+(* Alternative version, currently broken because of bidir. annotations. *)
 
 Polymorphic Class MTY_OF {A} := MTt_Of { mty_of : A -> Prop }.
 Arguments MTt_Of [_] _.
@@ -145,41 +91,16 @@ Polymorphic Class RET_TY (A : Type) := Ret_Ty { ret_ty : A }.
 Arguments Ret_Ty [_] _.
 Arguments ret_ty {_ _}.
 
-Notation "[¿ s .. t ] ps" := (mtpsort (M:=mty_of) (fun s => .. (mtpsort (M:=mty_of) (fun t => ps)) ..))
-  (at level 202, s binder, t binder, ps at next level, only parsing) : mtpattern_scope.
-Notation "'[S?' s .. t ] ps" := (mtpsort (M:=mty_of) (fun s => .. (mtpsort (M:=mty_of) (fun t => ps)) ..))
-  (at level 202, s binder, t binder, ps at next level) : mtpattern_scope.
-
-Notation "[? x .. y ] ps" := (mtptele (M:=mty_of) (fun x => .. (mtptele (M:=mty_of) (fun y => ps)).. ))
-  (at level 202, x binder, y binder, ps at next level) : mtpattern_scope.
-
-Notation "d '=u>' t" := (mtpbase_eq (m:=mty_of) d ret_ty cs_unify t UniCoq)
-    (at level 201) : mtpattern_scope.
-Notation "d '=c>' t" := (mtpbase_eq (m:=mty_of) d ret_ty cs_unify t UniEvarconv)
-    (at level 201) : mtpattern_scope.
-Notation "d '=n>' t" := (mtpbase_eq (m:=mty_of) d ret_ty cs_unify t UniMatchNoRed)
-    (at level 201) : mtpattern_scope.
-Notation "d '=m>' t" := (mtpbase_eq (m:=mty_of) d ret_ty cs_unify t UniMatch)
-    (at level 201) : mtpattern_scope.
-
-Notation "'_' => b " := (mtptele (M:=mty_of) (fun x=> mtpbase_eq (m:=mty_of) x ret_ty cs_unify b%core UniMatch))
-  (at level 201, b at next level) : mtpattern_scope.
-
-
-Declare Scope with_mtpattern_scope.
-Delimit Scope with_mtpattern_scope with with_mtpattern.
-
-Notation "'with' | p1 | .. | pn 'end'" :=
-  ((@mcons (mtpattern _ _) p1%mtpattern (.. (@mcons (mtpattern _ _) pn%mtpattern mnil) ..)))
-  (at level 91, p1 at level 210, pn at level 210) : with_mtpattern_scope.
-Notation "'with' p1 | .. | pn 'end'" :=
-  ((@mcons (mtpattern _ _) p1%mtpattern (.. (@mcons (mtpattern _ _) pn%mtpattern mnil) ..)))
-  (at level 91, p1 at level 210, pn at level 210) : with_mtpattern_scope.
-
-Notation "'mtmmatch' x 'as' y 'return' T p" :=
+Notation "'mtmmatch_alt' x 'as' y 'return' T 'with' p 'end'" :=
   (
-    let F : RET_TY _ := Ret_Ty (fun y => T) in
     let mt1 := M.eval (MTele_of (fun y => T)) in
+    let F : RET_TY _ := Ret_Ty (fun y => T) in
     let mt : MTY_OF := MTt_Of (fun _z => MTele_ty M (n:=mprojT1 (mt1 _z)) (mprojT2 (mt1 _z))) in
-    mtmmatch' _ (fun y => mprojT1 (mt1 y)) (fun y => mprojT2 (mt1 y)) x p%with_mtpattern
-  ) (at level 90, p at level 91).
+    mtmmatch' _ (fun y => mprojT1 (mt1 y)) (fun y => mprojT2 (mt1 y)) x p
+  ) (at level 90, p custom Mtac2_with_branch).
+
+Fail Local Example test_mtmmatch (n : nat) :=
+  mtmmatch_alt n as n' return n = n' -> M (n = 1) with
+  | 1 =n> fun H => M.ret H
+  | _ as _catchall => fun H : n = _catchall => M.failwith "test"
+  end.

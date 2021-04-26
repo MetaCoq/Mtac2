@@ -1,4 +1,4 @@
-From Mtac2 Require Import Mtac2 Tactics Ttactics.
+From Mtac2 Require Import Mtac2 Ttactics.
 Set Printing Universes.
 
 Import Ttactics.TT.

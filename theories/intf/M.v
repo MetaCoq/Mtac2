@@ -454,37 +454,40 @@ Module monad_notations.
   Infix "<*>" := fapp (at level 61, left associativity) : M_scope.
 
   Notation "'mif' b 'then' t 'else' u" :=
-    (cond <- b; if cond then t else u) (at level 200) : M_scope.
+    (cond <- b; if cond then t else u)
+      (at level 200,
+       format "'[hv' 'mif'  '/  ' '[' b ']'  '/' 'then'  '/  ' '[' t ']'  '/' 'else'  '/  ' '[' u ']' ']'"
+      ) : M_scope.
 End monad_notations.
 
 Import monad_notations.
 
-Local Notation Mpattern A P y := (pattern A (fun y => t (P y)) y).
-Local Notation Mbranch A P y := (branch A (fun y => t (P y)) y).
+Local Notation Mpattern A P := (pattern A (fun y => t (P y))).
+Local Notation Mbranch A P := (branch A (fun y => t (P y))).
 
 Definition open_pattern@{a p+} {A : Type@{a}} {P : A -> Type@{p}} {y} (E : Exception) :=
   Eval lazy beta iota match zeta delta [meq_sym] in
-  fix open_pattern (p : Mpattern A P y) : t (P y) :=
+  fix open_pattern (p : Mpattern A P) : t (P y) :=
   match p with
-  | pany b => b
+  | pany f => f y
   | pbase x f u =>
     oeq <- unify x y u;
     match oeq return t (P y) with
     | mSome eq =>
       (* eq has type x =m= t, but for the pattern we need t = x. *)
     (*      we still want to provide eq_refl though, so we reduce it *)
-      let h := reduce (RedWhd [rl:RedBeta;RedDelta;RedMatch]) (meq_sym eq) in
+      (* let h := reduce (RedWhd [rl:RedBeta;RedDelta;RedMatch]) (meq_sym eq) in *)
       let 'meq_refl := eq in
       (* For some reason, we need to return the beta-reduction of the pattern, or some tactic fails *)
-      let b := (* reduce (RedWhd [rl:RedBeta]) *) (f h) in b
+      let b := (* reduce (RedWhd [rl:RedBeta]) *) (f) in b
     | mNone => raise E
     end
-  | ptele f => e <- evar@{_ a} _; open_pattern (f e)
+  | ptele f => e <- evar _; open_pattern (f e)
   | psort f =>
     mtry'
       (open_pattern (f Propₛ))
       (fun e =>
-         M.unify_cnt@{Set _} UniMatchNoRed e E (open_pattern (f Typeₛ)) (raise e)
+         M.unify_cnt (B:=fun _ => (P y)) UniMatchNoRed e E (open_pattern (f Typeₛ)) (raise e)
          (* oeq <- M.unify e E UniMatchNoRed; *)
          (* match oeq with *)
          (* | mSome _ => open_pattern E (f Typeₛ) *)
@@ -496,43 +499,43 @@ Definition open_pattern@{a p+} {A : Type@{a}} {P : A -> Type@{p}} {y} (E : Excep
 (* We need to be extra careful here to use the provided [y] instead of that
    provided by the dependent pattern matching (which may be more reduced or
    otherwise mangled). *)
-Definition open_branch {A P y} (E : Exception) (b : branch A (fun a => t (P a)) y) : t (P y) :=
+Definition open_branch {A P} (E : Exception) (b : branch A (fun a => t (P a))) : forall y, t (P y) :=
   Eval lazy beta zeta iota delta [internal_meq_rew open_pattern] in
-  match b in branch A' P' y' return
-        forall (z: A') (P_old : A' -> Type), z =m= y' -> P' =m= (fun a => t (P_old a)) -> t (P_old y')
+  match b in branch A' P' return
+        forall (P_old : A' -> Type), P' =m= (fun a => t (P_old a)) -> forall y, t (P_old y)
   with
-  | @branch_pattern A P _ p =>
-    fun z P_old eq Peq =>
+  | @branch_pattern A P p =>
+    fun P_old Peq z =>
       let op := @open_pattern _ P_old z E in
-      ltac:(rewrite eq in op; rewrite Peq in p; refine (op p))
-  | @branch_app_static A B y m U _ cont =>
-    fun z P_old eq Peq =>
+      ltac:(rewrite Peq in p; refine (op p))
+  | @branch_app_static A B m U _ cont =>
+    fun P_old Peq z =>
       let op := is_head (B:=P_old) U z _ in
-      ltac:(rewrite eq in op; rewrite Peq in cont; refine (op cont (raise E)))
+      ltac:(rewrite Peq in cont; refine (op cont (raise E)))
   | branch_forallT cont =>
-    fun z P_old eq Peq =>
+    fun P_old Peq z =>
       let op := decompose_forallT z in
-      ltac:(rewrite eq in op; rewrite Peq in cont; refine (op cont (raise E)))
+       ltac:(rewrite Peq in cont; refine (op cont (raise E)))
   | branch_forallP cont =>
-    fun z P_old eq Peq =>
+    fun P_old Peq z =>
       let op := decompose_forallP z in
-      ltac:(rewrite eq in op; rewrite Peq in cont; refine (op cont (raise E)))
+      ltac:(rewrite Peq in cont; refine (op cont (raise E)))
   (* | _ => fun _ _ => M.failwith "not implemented" *)
-  end y P meq_refl meq_refl.
+  end P meq_refl.
 
 (* The first universe of the [branch] could be shared with [A] but somehow that makes our iris case study slower in a reproducible way.  *)
 Definition mmatch''@{a p+} {A:Type@{a}} {P: A -> Type@{p}} (E : Exception) (y : A) (failure : t (P y)) :=
   Eval lazy beta zeta iota delta [open_branch] in
-  fix mmatch'' (ps : mlist@{Set} (Mbranch A P y)) : t (P y) :=
+  fix mmatch'' (ps : mlist@{Set} (Mbranch A P)) : t (P y) :=
   match ps with
   | [m:] => failure
   | p :m: ps' =>
-    mtry' (open_branch (y:=y) E p) (fun e =>
+    mtry' (open_branch E p y) (fun e =>
       is_head (B:=fun e => P y) (m := mBase) UniMatchNoRed E e (mmatch'' ps') (raise e))
           (* TODO: don't abuse is_head for this. *)
   end.
 
-Definition mmatch' {A:Type} {P: A -> Type} (E : Exception) (y : A) (ps : mlist (Mbranch A P y)) : t (P y) :=
+Definition mmatch' {A:Type} {P: A -> Type} (E : Exception) (ps : mlist (Mbranch A P)) (y : A) : t (P y) :=
   Eval lazy beta zeta iota delta [mmatch''] in
   mmatch'' E y (raise NoPatternMatches) ps.
 
@@ -542,15 +545,15 @@ Module Matcher.
   Canonical Structure M_Predicate {A} {P : A -> Type} {y : A} : Predicate :=
     PREDICATE (t (P y)).
   Canonical Structure M_Matcher {A} {y} {P} :=
-    MATCHER
+    @MATCHER A
       (@M_Predicate _ _)
       (t (P y))
-      (fun E ps => @mmatch' A P E y ps).
+      (fun E ps => @mmatch' A P E ps y).
 
   Canonical Structure M_InDepMatcher {B} :=
     INDEPMATCHER
       (t B)
-      (fun A y E ps => @mmatch' A (fun _ => B) E y ps).
+      (fun A y E ps => @mmatch' A (fun _ => B) E ps y).
 End Matcher.
 Export Matcher.
 
@@ -574,33 +577,35 @@ Module notations_pre.
 
   Notation "'mfix1' f x .. y : 'M' T := b" :=
     (fix1 (fun x => .. (fun y => T%type) ..) (fun f x => .. (fun y => b) ..))
-    (at level 200, f ident, x binder, y binder, format
-    "'[v  ' 'mfix1'  f  x  ..  y  ':'  'M'  T  ':=' '/  ' b ']'") : M_scope.
+    (at level 200, f ident, x binder, y binder, b at level 200, format
+    "'[v  ' 'mfix1'  f  x  ..  y  ':'  'M'  T  ':=' '/' '[' b ']' ']'") : M_scope.
 
   Notation "'mfix2' f x .. y : 'M' T := b" :=
     (fix2 (fun x => .. (fun y => T%type) ..) (fun f x => .. (fun y => b) ..))
     (at level 200, f ident, x binder, y binder, format
-    "'[v  ' 'mfix2'  f  x  ..  y  ':'  'M'  T  ':=' '/  ' b ']'") : M_scope.
+    "'[v  ' 'mfix2'  f  x  ..  y  ':'  'M'  T  ':=' '/' '[' b ']' ']'") : M_scope.
 
   Notation "'mfix3' f x .. y : 'M' T := b" :=
     (fix3 (fun x => .. (fun y => T%type) ..) (fun f x => .. (fun y => b) ..))
     (at level 200, f ident, x binder, y binder, format
-    "'[v  ' 'mfix3'  f  x  ..  y  ':'  'M'  T  ':=' '/  ' b ']'") : M_scope.
+    "'[v  ' 'mfix3'  f  x  ..  y  ':'  'M'  T  ':=' '/' '[' b ']' ']'") : M_scope.
 
   Notation "'mfix4' f x .. y : 'M' T := b" :=
     (fix4 (fun x => .. (fun y => T%type) ..) (fun f x => .. (fun y => b) ..))
     (at level 200, f ident, x binder, y binder, format
-    "'[v  ' 'mfix4'  f  x  ..  y  ':'  'M'  T  ':=' '/  ' b ']'") : M_scope.
+    "'[v  ' 'mfix4'  f  x  ..  y  ':'  'M'  T  ':=' '/' '[' b ']' ']'") : M_scope.
 
   Notation "'mfix5' f x .. y : 'M' T := b" :=
     (fix5 (fun x => .. (fun y => T%type) ..) (fun f x => .. (fun y => b) ..))
     (at level 200, f ident, x binder, y binder, format
-    "'[v  ' 'mfix5'  f  x  ..  y  ':'  'M'  T  ':=' '/  ' b ']'") : M_scope.
+    "'[v  ' 'mfix5'  f  x  ..  y  ':'  'M'  T  ':=' '/' '[' b ']' ']'") : M_scope.
 
-  Notation "'mtry' a ls" :=
+  Notation "'mtry' a 'with' ls 'end'" :=
     (mtry' a (fun e =>
-      (@mmatch'' _ (fun _ => _) NotCaught e (raise e) ls%with_pattern)))
-      (at level 200, a at level 100, ls at level 91, only parsing) : M_scope.
+      (@mmatch'' _ (fun _ => _) NotCaught e (raise e) ls)))
+      (at level 200, a at level 100, ls custom Mtac2_with_branch at level 91,
+       format "'[hv' 'mtry'  '/  ' '[' a ']'  '/' 'with' '/' ls  '/' 'end' ']'"
+      ) : M_scope.
 
   Import TeleNotation.
   Notation "'dcase' v 'with' A 'as' x 'in' t" :=
@@ -695,10 +700,11 @@ Definition iterate {A} (f : A -> t unit) : mlist A -> t unit :=
     end.
 
 (** More utilitie *)
+Unset Printing Universes.
 Definition mwith {A B} (c : A) (n : string) (v : B) : t dyn :=
   (mfix1 app (d : dyn) : M _ :=
     dcase d as ty, el in
-    mmatch d with
+    mmatch d return t dyn with
     | [? T1 T2 f] @Dyn (forall x:T1, T2 x) f =>
       let ty := reduce (RedWhd [rl:RedBeta]) ty in
       binder <- get_binder_name ty;

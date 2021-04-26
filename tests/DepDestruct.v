@@ -1,5 +1,5 @@
 From Mtac2
-Require Import Datatypes List Mtac2 DepDestruct Sorts.
+Require Import Datatypes List Mtac2 DepDestruct Sorts MTeleMatch.
 Import Sorts.S.
 Import T.
 Import Mtac2.lib.List.ListNotations.
@@ -150,15 +150,15 @@ Fixpoint unfold_funs {A} (t: A) (n: nat) {struct n} : M A :=
   match n with
   | 0 => M.ret t
   | S n' =>
-    mmatch A as A' return M A' with
-    | [? B (fty : B -> Type)] forall x, fty x => [H]
+    (mtmmatch A as A' return A =m= A' -> M A' with
+    | [? B (fty : B -> Type)] forall x, fty x =m> fun H =>
       let t' := reduce RedSimpl match H in meq _ P return P with meq_refl => t end in (* we need to reduce this *)
       M.nu (FreshFrom "A") mNone (fun x=>
         r <- unfold_funs (t' x) n';
         abs x r)
-    | [? A'] A' => [H]
+    | [? A'] A' =m> fun H =>
       match H in meq _ P return M P with meq_refl => M.ret t end
-    end
+    end) meq_refl
   end%MC.
 
 (* MetaCoq version *)

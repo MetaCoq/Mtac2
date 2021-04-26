@@ -97,7 +97,7 @@ Definition apply_type_of (P : Type) :
          end
        else M.remove x_nu (M.ret r)
        )
-  | _ => fun _ =>
+  | _ as _catchall => fun _ =>
       M.failwith "The lemma's conclusion does not unify with the goal."
   end
 .
