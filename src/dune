@@ -6,13 +6,5 @@
  (modules :standard)
  (libraries coq.plugins.ltac unicoq.plugin))
 
-(rule
- (targets metaCoqInit.ml)
- (deps (:pp-file metaCoqInit.mlg))
- (action (run coqpp %{pp-file})))
-
-(rule
- (targets metaCoqTactic.ml)
- (deps (:pp-file metaCoqTactic.mlg))
- (action (run coqpp %{pp-file})))
+(coq.pp (modules metaCoqInit metaCoqTactic))
 
